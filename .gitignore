@@ -28,6 +28,7 @@ wheels/
 *.ipynb_checkpoints
 
 # Data
+data/raw/*.csv
 data/processed/
 data/meta/
 *.npz
