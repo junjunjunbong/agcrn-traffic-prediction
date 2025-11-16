@@ -1,0 +1,36 @@
+# AGCRN Model Configuration
+
+# Data parameters
+node_mode: "raw_id"  # Options: "raw_id" (480 nodes) or "det_pos" (160 nodes)
+features: ["flow", "occupancy", "harmonicMeanSpeed"]
+sequence_length: 12  # Input sequence length (12 steps = 1 minute)
+horizon: 3  # Prediction horizon (3 steps = 15 seconds ahead)
+
+# Model architecture
+num_nodes: 480  # Will be set automatically based on node_mode
+input_dim: 3  # Number of features
+output_dim: 1  # Predict single feature (speed) or multi-feature
+hidden_dim: 64
+num_layers: 2
+cheb_k: 2  # Chebyshev polynomial order
+embed_dim: 10  # Node embedding dimension
+
+# Training parameters
+batch_size: 64
+learning_rate: 0.001
+num_epochs: 100
+patience: 10  # Early stopping patience
+grad_clip: 5.0  # Gradient clipping
+
+# Data processing
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+# Missing value handling
+free_flow_speed: 15.0  # m/s
+congested_speed: 2.5  # m/s
+
+# Device
+device: "cuda"  # Options: "cuda" or "cpu"
+

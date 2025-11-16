@@ -1,0 +1,81 @@
+"""
+Main training script for AGCRN traffic prediction
+"""
+import argparse
+from pathlib import Path
+import torch
+
+from src.config import (
+    NUM_NODES, INPUT_DIM, OUTPUT_DIM, HIDDEN_DIM, NUM_LAYERS,
+    CHEB_K, EMBED_DIM, BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, DEVICE
+)
+from src.model_agcrn import AGCRN
+from src.dataset import create_dataloaders
+from src.trainer import Trainer
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Train AGCRN model')
+    parser.add_argument('--data', type=str, default='loops_035', help='Data name (e.g., loops_035)')
+    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Batch size')
+    parser.add_argument('--lr', type=float, default=LEARNING_RATE, help='Learning rate')
+    parser.add_argument('--epochs', type=int, default=NUM_EPOCHS, help='Number of epochs')
+    parser.add_argument('--hidden_dim', type=int, default=HIDDEN_DIM, help='Hidden dimension')
+    parser.add_argument('--num_layers', type=int, default=NUM_LAYERS, help='Number of layers')
+    parser.add_argument('--device', type=str, default=DEVICE, help='Device to use')
+    
+    args = parser.parse_args()
+    
+    print("="*60)
+    print("AGCRN Traffic Prediction - Training")
+    print("="*60)
+    print(f"Data: {args.data}")
+    print(f"Device: {args.device}")
+    print(f"Batch size: {args.batch_size}")
+    print(f"Learning rate: {args.lr}")
+    print(f"Epochs: {args.epochs}")
+    print("="*60)
+    
+    # Create data loaders
+    print("\nLoading data...")
+    train_loader, val_loader, test_loader = create_dataloaders(
+        data_name=args.data,
+        batch_size=args.batch_size
+    )
+    
+    # Create model
+    print("\nCreating model...")
+    model = AGCRN(
+        num_nodes=NUM_NODES,
+        input_dim=INPUT_DIM,
+        output_dim=OUTPUT_DIM,
+        hidden_dim=args.hidden_dim,
+        num_layers=args.num_layers,
+        cheb_k=CHEB_K,
+        embed_dim=EMBED_DIM
+    )
+    
+    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+    
+    # Create trainer
+    trainer = Trainer(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        lr=args.lr,
+        device=args.device
+    )
+    
+    # Train
+    print("\nStarting training...")
+    history = trainer.train(num_epochs=args.epochs)
+    
+    print("\n" + "="*60)
+    print("Training completed!")
+    print(f"Best validation loss: {history['best_val_loss']:.6f}")
+    print("="*60)
+
+
+if __name__ == "__main__":
+    main()
+
