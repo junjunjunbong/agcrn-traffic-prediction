@@ -147,23 +147,25 @@ def create_node_mapping(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, int]]
     return sensors_df, node_to_idx
 
 
-def create_time_index(df: pd.DataFrame) -> np.ndarray:
+def create_time_index(df: pd.DataFrame) -> Tuple[np.ndarray, List]:
     """
     Create time index from begin/end columns
 
     Returns:
         time_steps: Array of time step indices (0, 1, 2, ...)
+        unique_times: List of unique timestamps
     """
     unique_times = sorted(df['begin'].unique())
     num_steps = len(unique_times)
     logger.info(f"  Found {num_steps} time steps")
-    return np.arange(num_steps)
+    return np.arange(num_steps), unique_times
 
 
 def convert_to_tensor_vectorized(
     df: pd.DataFrame,
     node_to_idx: Dict,
-    time_steps: np.ndarray
+    time_steps: np.ndarray,
+    unique_times: List
 ) -> np.ndarray:
     """
     Convert DataFrame to (T, N, F) tensor using vectorized operations
@@ -174,6 +176,7 @@ def convert_to_tensor_vectorized(
         df: Input DataFrame
         node_to_idx: Node ID to index mapping
         time_steps: Time step indices
+        unique_times: List of unique timestamps
 
     Returns:
         X: Tensor of shape (T, N, F)
@@ -213,12 +216,9 @@ def convert_to_tensor_vectorized(
             fill_value=np.nan
         )
 
-        # Ensure all nodes are present (fill missing nodes with NaN)
+        # Ensure all nodes and times are present (fill missing with NaN)
         all_nodes = sorted(node_to_idx.keys())
-        pivot = pivot.reindex(columns=all_nodes, fill_value=np.nan)
-
-        # Sort by node index
-        pivot = pivot[all_nodes]
+        pivot = pivot.reindex(index=unique_times, columns=all_nodes, fill_value=np.nan)
 
         # Handle missing speed values (-1 → NaN)
         if feature == 'harmonicMeanSpeed':
@@ -237,9 +237,9 @@ def convert_to_tensor_vectorized(
     return X
 
 
-def interpolate_all_features(X: np.ndarray) -> np.ndarray:
+def interpolate_all_features(X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Interpolate missing values for ALL features
+    Interpolate missing values for ALL features and create observation mask
 
     Strategy:
     1. Time-direction linear interpolation for each node
@@ -251,7 +251,11 @@ def interpolate_all_features(X: np.ndarray) -> np.ndarray:
 
     Returns:
         X_interp: Interpolated tensor
+        mask: Boolean mask (True = real observation, False = imputed)
     """
+    # Create mask BEFORE interpolation (True = observed, False = missing)
+    mask = ~np.isnan(X)
+
     X_interp = X.copy()
     T, N, F = X.shape
 
@@ -305,15 +309,27 @@ def interpolate_all_features(X: np.ndarray) -> np.ndarray:
 
     logger.info(f"  ✓ Interpolation complete. Remaining NaN: {total_nan}")
 
-    return X_interp
+    # Log mask statistics
+    observation_rate = mask.mean() * 100
+    logger.info(f"  ✓ Observation mask created: {observation_rate:.2f}% real observations")
+
+    return X_interp, mask
 
 
-def split_data(X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def split_data(
+    X: np.ndarray,
+    mask: Optional[np.ndarray] = None
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]]:
     """
     Split data into train/val/test sets along time axis
 
+    Args:
+        X: Data tensor (T, N, F)
+        mask: Optional observation mask (T, N, F)
+
     Returns:
         X_train, X_val, X_test: Split tensors
+        (mask_train, mask_val, mask_test): Split masks (if mask provided)
     """
     T = X.shape[0]
     train_end = int(T * TRAIN_RATIO)
@@ -325,7 +341,13 @@ def split_data(X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     logger.info(f"  Data split: Train={len(X_train)}, Val={len(X_val)}, Test={len(X_test)}")
 
-    return X_train, X_val, X_test
+    if mask is not None:
+        mask_train = mask[:train_end]
+        mask_val = mask[train_end:val_end]
+        mask_test = mask[val_end:]
+        return X_train, X_val, X_test, (mask_train, mask_val, mask_test)
+    else:
+        return X_train, X_val, X_test, None
 
 
 def normalize_data(
@@ -401,22 +423,23 @@ def process_single_file(csv_path: Path) -> Tuple[str, Dict]:
     sensors_df, node_to_idx = create_node_mapping(df)
 
     # 4. Create time index
-    time_steps = create_time_index(df)
+    time_steps, unique_times = create_time_index(df)
 
     # 5. Convert to tensor (VECTORIZED - 600x faster!)
-    X = convert_to_tensor_vectorized(df, node_to_idx, time_steps)
+    X = convert_to_tensor_vectorized(df, node_to_idx, time_steps, unique_times)
 
     # 6. Validate tensor (allow NaN before interpolation)
     validate_tensor(X, "Raw tensor", allow_nan=True)
 
-    # 7. Interpolate ALL features
-    X = interpolate_all_features(X)
+    # 7. Interpolate ALL features and create observation mask
+    X, mask = interpolate_all_features(X)
 
     # 8. Validate no NaN after interpolation
     validate_tensor(X, "Interpolated tensor", allow_nan=False)
 
-    # 9. Split data
-    X_train, X_val, X_test = split_data(X)
+    # 9. Split data and mask
+    X_train, X_val, X_test, masks = split_data(X, mask)
+    mask_train, mask_val, mask_test = masks
 
     # 10. Normalize
     X_train_norm, X_val_norm, X_test_norm, stats = normalize_data(X_train, X_val, X_test)
@@ -426,7 +449,7 @@ def process_single_file(csv_path: Path) -> Tuple[str, Dict]:
     validate_tensor(X_val_norm, "Normalized val", allow_nan=False)
     validate_tensor(X_test_norm, "Normalized test", allow_nan=False)
 
-    # 12. Save processed data
+    # 12. Save processed data with masks
     output_name = csv_path.stem.replace('loops', 'loops_')
     output_path = PROCESSED_DATA_DIR / f"{output_name}_processed.npz"
 
@@ -435,6 +458,9 @@ def process_single_file(csv_path: Path) -> Tuple[str, Dict]:
         train=X_train_norm,
         val=X_val_norm,
         test=X_test_norm,
+        mask_train=mask_train,
+        mask_val=mask_val,
+        mask_test=mask_test,
         stats=stats
     )
 
