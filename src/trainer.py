@@ -10,6 +10,7 @@ import numpy as np
 from typing import Dict, Optional
 from tqdm import tqdm
 import json
+import copy
 
 from src.config import SAVED_MODELS_DIR, LOGS_DIR, DEVICE, PATIENCE
 from src.model_agcrn import AGCRN
@@ -145,7 +146,7 @@ class Trainer:
             if val_loss < self.best_val_loss:
                 self.best_val_loss = val_loss
                 self.patience_counter = 0
-                self.best_model_state = self.model.state_dict().copy()
+                self.best_model_state = copy.deepcopy(self.model.state_dict())
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': self.model.state_dict(),
