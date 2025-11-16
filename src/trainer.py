@@ -52,37 +52,57 @@ class Trainer:
         self.model.train()
         total_loss = 0.0
         num_batches = 0
-        
+
         pbar = tqdm(self.train_loader, desc="Training")
-        for x, y in pbar:
+        for batch_data in pbar:
+            # Unpack batch (x, y, masks)
+            x, y, masks = batch_data
             x = x.to(self.device)  # (batch, T_in, N, F)
             y = y.to(self.device)  # (batch, T_out, N, F)
-            
+
             # For now, predict only the last time step
             # TODO: Support multi-step prediction
             y_target = y[:, -1, :, :]  # (batch, N, F) - last time step
-            
+
+            # Extract corresponding mask if available
+            mask_target = None
+            if masks is not None:
+                _, mask_y = masks
+                mask_y = mask_y.to(self.device)
+                mask_target = mask_y[:, -1, :, :]  # (batch, N, F) - last time step
+
             self.optimizer.zero_grad()
-            
+
             # Forward pass
             output = self.model(x)  # (batch, N, output_dim)
-            
-            # If output_dim != F, we need to select features
+
+            # Compute loss with mask support
             if output.shape[-1] == y_target.shape[-1]:
-                loss = self.criterion(output, y_target)
+                # Full feature prediction
+                if hasattr(self.criterion, 'forward') and 'mask' in self.criterion.forward.__code__.co_varnames:
+                    loss = self.criterion(output, y_target, mask_target)
+                else:
+                    loss = self.criterion(output, y_target)
             else:
                 # Assume predicting only speed (first feature)
-                loss = self.criterion(output.squeeze(-1), y_target[:, :, 0])
-            
+                pred = output.squeeze(-1)
+                target = y_target[:, :, 0]
+                mask = mask_target[:, :, 0] if mask_target is not None else None
+
+                if hasattr(self.criterion, 'forward') and 'mask' in self.criterion.forward.__code__.co_varnames:
+                    loss = self.criterion(pred, target, mask)
+                else:
+                    loss = self.criterion(pred, target)
+
             # Backward pass
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
             self.optimizer.step()
-            
+
             total_loss += loss.item()
             num_batches += 1
             pbar.set_postfix({'loss': loss.item()})
-        
+
         avg_loss = total_loss / num_batches
         self.train_losses.append(avg_loss)
         return avg_loss
@@ -92,24 +112,44 @@ class Trainer:
         self.model.eval()
         total_loss = 0.0
         num_batches = 0
-        
+
         with torch.no_grad():
-            for x, y in tqdm(self.val_loader, desc="Validation"):
+            for batch_data in tqdm(self.val_loader, desc="Validation"):
+                # Unpack batch (x, y, masks)
+                x, y, masks = batch_data
                 x = x.to(self.device)
                 y = y.to(self.device)
-                
+
                 y_target = y[:, -1, :, :]
-                
+
+                # Extract corresponding mask if available
+                mask_target = None
+                if masks is not None:
+                    _, mask_y = masks
+                    mask_y = mask_y.to(self.device)
+                    mask_target = mask_y[:, -1, :, :]
+
                 output = self.model(x)
-                
+
+                # Compute loss with mask support
                 if output.shape[-1] == y_target.shape[-1]:
-                    loss = self.criterion(output, y_target)
+                    if hasattr(self.criterion, 'forward') and 'mask' in self.criterion.forward.__code__.co_varnames:
+                        loss = self.criterion(output, y_target, mask_target)
+                    else:
+                        loss = self.criterion(output, y_target)
                 else:
-                    loss = self.criterion(output.squeeze(-1), y_target[:, :, 0])
-                
+                    pred = output.squeeze(-1)
+                    target = y_target[:, :, 0]
+                    mask = mask_target[:, :, 0] if mask_target is not None else None
+
+                    if hasattr(self.criterion, 'forward') and 'mask' in self.criterion.forward.__code__.co_varnames:
+                        loss = self.criterion(pred, target, mask)
+                    else:
+                        loss = self.criterion(pred, target)
+
                 total_loss += loss.item()
                 num_batches += 1
-        
+
         avg_loss = total_loss / num_batches
         self.val_losses.append(avg_loss)
         return avg_loss

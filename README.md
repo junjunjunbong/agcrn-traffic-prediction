@@ -13,9 +13,10 @@
 ### 🌟 주요 특징
 
 - **600배 빠른 전처리**: 벡터화 연산으로 100만 행 데이터를 5초 내 처리
-- **마스킹 기반 결측값 처리**: 실제 관측값과 보간값을 구분하여 학습
+- **마스킹 기반 결측값 처리**: 실제 관측값(70.8%)과 보간값(29.2%)을 구분하여 학습
 - **긴 결측 구간 필터링**: 5분 이상 연속 결측 샘플 자동 제거
-- **다양한 손실 함수**: MaskedMSE, ObservedOnly 등 결측값 처리 특화 손실
+- **다양한 손실 함수**: MaskedMSE, MaskedMAE, ObservedOnly 등 4가지 옵션
+- **통합 학습 파이프라인**: 명령어 한 줄로 마스킹 기반 학습 가능
 - **완전한 테스트**: 15개 이상의 단위 테스트로 안정성 보장
 
 ## 📁 프로젝트 구조
@@ -104,36 +105,34 @@ python preprocess.py
 
 #### 3. 모델 학습
 
-마스킹 기반 학습:
+마스킹 기반 손실 함수로 학습:
 
-```python
-from src.dataset import create_dataloaders
-from src.losses import MaskedMSELoss
-from src.model_agcrn import AGCRN
+```bash
+# 기본 실행 (Masked MSE, 보간값 10% 가중치)
+python train.py --loss masked_mse
 
-# 데이터 로더 생성 (마스크 + 필터링)
-train_loader, val_loader, test_loader = create_dataloaders(
-    'loops_035',
-    batch_size=64,
-    use_masks=True,          # 마스크 사용
-    filter_long_gaps=True,   # 긴 결측 구간 필터링
-    max_missing_gap=60       # 5분 기준
-)
+# 짧은 테스트 (5 에폭)
+python train.py --epochs 5 --loss masked_mse
 
-# 마스크 기반 손실 함수
-criterion = MaskedMSELoss(imputed_weight=0.1)  # 보간값 10% 가중치
+# 보간값 가중치 조절 (5% = 관측값의 20배 중요)
+python train.py --loss masked_mse --imputed_weight 0.05
 
-# 학습
-model = AGCRN()
-for x, y, masks in train_loader:
-    pred = model(x)
+# 보간값 완전 무시 (관측값만 학습)
+python train.py --loss observed_only
 
-    if masks is not None:
-        _, mask_y = masks
-        loss = criterion(pred, target, mask_y)
-    else:
-        loss = criterion(pred, target)
+# MAE 손실 함수 (이상치에 덜 민감)
+python train.py --loss masked_mae
+
+# 기존 방식 (비교용 - 마스킹 없음)
+python train.py --loss mse
 ```
+
+**주요 옵션**:
+- `--loss`: 손실 함수 선택 (`masked_mse`, `masked_mae`, `observed_only`, `mse`)
+- `--imputed_weight`: 보간값 가중치 (0.0~1.0, 기본값 0.1)
+- `--epochs`: 학습 에폭 수 (기본값 100)
+- `--data`: 데이터 파일명 (기본값 `loops_035`)
+- `--device`: 디바이스 (`cuda` 또는 `cpu`)
 
 **자세한 사용법**: [MASKED_PREPROCESSING_USAGE.md](MASKED_PREPROCESSING_USAGE.md) 참고
 
@@ -188,17 +187,18 @@ NUM_EPOCHS = 100
 
 ### 마스킹 옵션
 
-```python
-# 보수적: 보간값 완전 무시
-from src.losses import ObservedOnlyLoss
-criterion = ObservedOnlyLoss()
+```bash
+# 보수적: 보간값 완전 무시 (70.8% 관측값만 학습)
+python train.py --loss observed_only
 
 # 균형: 보간값 10% 가중치 (추천)
-from src.losses import MaskedMSELoss
-criterion = MaskedMSELoss(imputed_weight=0.1)
+python train.py --loss masked_mse --imputed_weight 0.1
 
 # 적극적: 보간값 50% 가중치
-criterion = MaskedMSELoss(imputed_weight=0.5)
+python train.py --loss masked_mse --imputed_weight 0.5
+
+# 표준: 마스킹 없이 모든 값 동등 취급 (비교용)
+python train.py --loss mse
 ```
 
 ### 필터링 옵션
@@ -248,7 +248,8 @@ Prediction (batch, N, output_dim)
 | 결측값 처리 | speed만 | 모든 특성 | ✅ |
 | 관측값 추적 | 없음 | 마스킹 | ✅ |
 | 긴 결측 처리 | 보간 | 필터링 | ✅ |
-| 손실 함수 | MSE만 | 3가지 옵션 | ✅ |
+| 손실 함수 | MSE만 | 4가지 옵션 | ✅ |
+| 학습 파이프라인 | 수동 통합 | CLI 자동화 | ✅ |
 | 테스트 커버리지 | 0% | 80%+ | ✅ |
 
 ## 📚 문서
