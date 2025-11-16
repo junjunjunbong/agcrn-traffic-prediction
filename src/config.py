@@ -2,6 +2,7 @@
 Configuration file for AGCRN traffic prediction project
 """
 import os
+import torch
 from pathlib import Path
 
 # Project root directory
@@ -51,7 +52,7 @@ SEQUENCE_LENGTH = 12  # Input sequence length (12 steps = 1 minute)
 HORIZON = 3  # Prediction horizon (3 steps = 15 seconds ahead)
 
 # Device
-DEVICE = "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Create directories if they don't exist
 for dir_path in [PROCESSED_DATA_DIR, META_DATA_DIR, SAVED_MODELS_DIR, LOGS_DIR, CONFIGS_DIR]:
