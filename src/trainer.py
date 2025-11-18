@@ -94,6 +94,17 @@ class Trainer:
                 else:
                     loss = self.criterion(pred, target)
 
+            # Check for NaN/Inf loss BEFORE backward pass
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"\n⚠️  NaN/Inf loss detected at batch {num_batches}!")
+                print(f"  Loss value: {loss.item()}")
+                print(f"  Output stats: min={output.min().item():.6f}, max={output.max().item():.6f}, mean={output.mean().item():.6f}")
+                print(f"  Target stats: min={y_target.min().item():.6f}, max={y_target.max().item():.6f}, mean={y_target.mean().item():.6f}")
+                if mask_target is not None:
+                    print(f"  Mask sum: {mask_target.sum().item()}")
+                print(f"  Skipping this batch and continuing...")
+                continue
+
             # Backward pass
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
@@ -146,6 +157,12 @@ class Trainer:
                         loss = self.criterion(pred, target, mask)
                     else:
                         loss = self.criterion(pred, target)
+
+                # Check for NaN/Inf loss
+                if torch.isnan(loss) or torch.isinf(loss):
+                    print(f"\n⚠️  NaN/Inf loss detected in validation at batch {num_batches}!")
+                    print(f"  Skipping this batch...")
+                    continue
 
                 total_loss += loss.item()
                 num_batches += 1

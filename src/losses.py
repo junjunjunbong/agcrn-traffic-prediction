@@ -55,7 +55,8 @@ class MaskedMSELoss(nn.Module):
                 if total_weight > 0:
                     return weighted_error.sum() / total_weight
                 else:
-                    return weighted_error.mean()
+                    # Return zero loss if no weights (avoid NaN propagation)
+                    return torch.tensor(0.0, device=pred.device, dtype=pred.dtype)
             else:  # sum
                 return weighted_error.sum()
         else:
@@ -112,7 +113,8 @@ class MaskedMAELoss(nn.Module):
                 if total_weight > 0:
                     return weighted_error.sum() / total_weight
                 else:
-                    return weighted_error.mean()
+                    # Return zero loss if no weights (avoid NaN propagation)
+                    return torch.tensor(0.0, device=pred.device, dtype=pred.dtype)
             else:  # sum
                 return weighted_error.sum()
         else:

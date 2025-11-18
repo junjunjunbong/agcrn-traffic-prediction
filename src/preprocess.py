@@ -305,7 +305,11 @@ def interpolate_all_features(X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
     total_nan = np.isnan(X_interp).sum()
     if total_nan > 0:
-        warnings.warn(f"Still {total_nan} NaN values remaining after interpolation")
+        nan_pct = 100 * total_nan / X_interp.size
+        raise ValueError(
+            f"Still {total_nan:,} NaN values ({nan_pct:.2f}%) remaining after interpolation. "
+            "This indicates a problem with the interpolation logic or data quality."
+        )
 
     logger.info(f"  ✓ Interpolation complete. Remaining NaN: {total_nan}")
 
