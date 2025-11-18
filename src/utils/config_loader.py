@@ -39,7 +39,7 @@ class ConfigLoader:
         try:
             with open(self.config_path, 'r') as f:
                 config = yaml.safe_load(f)
-            logger.info(f"✓ Loaded configuration from {self.config_path}")
+            logger.info(f"[OK] Loaded configuration from {self.config_path}")
             return config
         except yaml.YAMLError as e:
             logger.error(f"Failed to parse YAML file: {e}")
@@ -99,7 +99,7 @@ class ConfigLoader:
         with open(output_path, 'w') as f:
             yaml.dump(self.config, f, default_flow_style=False, sort_keys=False)
 
-        logger.info(f"✓ Saved configuration to {output_path}")
+        logger.info(f"[OK] Saved configuration to {output_path}")
 
     def to_dict(self) -> Dict[str, Any]:
         """Return configuration as dictionary"""

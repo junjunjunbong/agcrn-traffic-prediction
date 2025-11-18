@@ -49,7 +49,7 @@ def train_dataset(dataset_name):
             f.write(result.stdout)
             print(result.stdout)
 
-        print(f"✓ {dataset_name} training completed!")
+        print(f"[OK] {dataset_name} training completed!")
 
         # Copy results
         if Path("saved_models/best_agcrn.pt").exists():
@@ -57,14 +57,14 @@ def train_dataset(dataset_name):
                 "saved_models/best_agcrn.pt",
                 results_dir / "best_model.pt"
             )
-            print(f"✓ Model saved to {results_dir}/best_model.pt")
+            print(f"[OK] Model saved to {results_dir}/best_model.pt")
 
         if Path("logs/training_history.json").exists():
             shutil.copy(
                 "logs/training_history.json",
                 results_dir / "history.json"
             )
-            print(f"✓ History saved to {results_dir}/history.json")
+            print(f"[OK] History saved to {results_dir}/history.json")
 
         return True
 

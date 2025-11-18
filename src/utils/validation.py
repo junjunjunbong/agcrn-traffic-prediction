@@ -45,7 +45,7 @@ def validate_csv_file(csv_path: Path, required_columns: List[str]) -> None:
             f"Missing required columns in {csv_path.name}: {missing_columns}"
         )
 
-    logger.info(f"✓ CSV validation passed: {csv_path.name}")
+    logger.info(f"[OK] CSV validation passed: {csv_path.name}")
 
 
 def validate_tensor_shape(
@@ -75,7 +75,7 @@ def validate_tensor_shape(
                 f"{name} dimension {i}: expected {expected}, got {actual}"
             )
 
-    logger.debug(f"✓ Tensor shape validation passed: {name} {tensor.shape}")
+    logger.debug(f"[OK] Tensor shape validation passed: {name} {tensor.shape}")
 
 
 def validate_no_inf_nan(
@@ -106,7 +106,7 @@ def validate_no_inf_nan(
             f"{name} contains {nan_count} NaN values"
         )
 
-    logger.debug(f"✓ Value validation passed: {name}")
+    logger.debug(f"[OK] Value validation passed: {name}")
 
 
 def validate_value_range(
@@ -141,7 +141,7 @@ def validate_value_range(
                 f"{name} contains {above_count} values above {max_val}"
             )
 
-    logger.debug(f"✓ Range validation passed: {name}")
+    logger.debug(f"[OK] Range validation passed: {name}")
 
 
 def validate_processed_data(
@@ -182,4 +182,4 @@ def validate_processed_data(
             f"Training set too small: {train_data.shape[0]} samples"
         )
 
-    logger.info("✓ All data validation checks passed")
+    logger.info("[OK] All data validation checks passed")

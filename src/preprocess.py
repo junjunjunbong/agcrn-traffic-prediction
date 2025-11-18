@@ -66,7 +66,7 @@ def validate_input_data(df: pd.DataFrame) -> None:
         if occ_min < 0 or occ_max > 1:
             warnings.warn(f"Occupancy outside [0,1]: min={occ_min:.2f}, max={occ_max:.2f}")
 
-    logger.info(f"✓ Input data validation passed: {len(df)} rows, {len(time_steps)} time steps")
+    logger.info(f"[OK] Input data validation passed: {len(df)} rows, {len(time_steps)} time steps")
 
 
 def validate_tensor(X: np.ndarray, name: str, allow_nan: bool = False) -> None:
@@ -98,7 +98,7 @@ def validate_tensor(X: np.ndarray, name: str, allow_nan: bool = False) -> None:
     if inf_count > 0:
         raise ValueError(f"{name} contains {inf_count} inf values")
 
-    logger.info(f"✓ {name} validation passed: shape={X.shape}, dtype={X.dtype}")
+    logger.info(f"[OK] {name} validation passed: shape={X.shape}, dtype={X.dtype}")
 
 
 def load_csv_data(csv_path: Path) -> pd.DataFrame:
@@ -311,11 +311,11 @@ def interpolate_all_features(X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
             "This indicates a problem with the interpolation logic or data quality."
         )
 
-    logger.info(f"  ✓ Interpolation complete. Remaining NaN: {total_nan}")
+    logger.info(f"  [OK] Interpolation complete. Remaining NaN: {total_nan}")
 
     # Log mask statistics
     observation_rate = mask.mean() * 100
-    logger.info(f"  ✓ Observation mask created: {observation_rate:.2f}% real observations")
+    logger.info(f"  [OK] Observation mask created: {observation_rate:.2f}% real observations")
 
     return X_interp, mask
 
@@ -486,7 +486,7 @@ def process_single_file(csv_path: Path) -> Tuple[str, Dict]:
     }
 
     logger.info("")
-    logger.info(f"✓ Processing complete: {output_name}")
+    logger.info(f"[OK] Processing complete: {output_name}")
     logger.info(f"  Final shapes - Train: {X_train_norm.shape}, Val: {X_val_norm.shape}, Test: {X_test_norm.shape}")
     logger.info("")
 
