@@ -211,7 +211,7 @@ class Trainer:
                     'val_loss': val_loss,
                     'train_loss': train_loss,
                 }, save_path)
-                print(f"✓ Saved best model (val_loss: {val_loss:.6f})")
+                print(f"[OK] Saved best model (val_loss: {val_loss:.6f})")
             else:
                 self.patience_counter += 1
                 if self.patience_counter >= PATIENCE:
