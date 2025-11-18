@@ -18,6 +18,8 @@
 - **다양한 손실 함수**: MaskedMSE, MaskedMAE, ObservedOnly 등 4가지 옵션
 - **통합 학습 파이프라인**: 명령어 한 줄로 마스킹 기반 학습 가능
 - **완전한 테스트**: 15개 이상의 단위 테스트로 안정성 보장
+- **🆕 NaN Loss 버그 수정**: 3중 방어 시스템으로 안정적인 학습 보장
+- **🆕 다중 데이터셋 지원**: 여러 데이터셋 자동 학습 및 비교 기능
 
 ## 📁 프로젝트 구조
 
@@ -43,7 +45,12 @@ agcrn-traffic-prediction/
 ├── analyze_missing_pattern.py       # 결측값 분석 스크립트
 ├── analyze_missing_pattern_simple.py # 독립 실행 분석 스크립트
 ├── train.py                         # 학습 스크립트
+├── train_all.py                     # 🆕 다중 데이터셋 자동 학습
 ├── preprocess.py                    # 전처리 실행 스크립트
+├── debug_nan.py                     # 🆕 NaN 디버깅 도구
+├── check_data_simple.py             # 🆕 데이터 검증 도구
+├── test_nan_fix_v2.py               # 🆕 NaN 수정 테스트
+├── FIX_SUMMARY.md                   # 🆕 NaN 버그 수정 요약
 ├── MASKED_PREPROCESSING_USAGE.md    # 마스킹 전처리 사용 가이드
 └── README.md
 ```
@@ -108,33 +115,51 @@ python preprocess.py
 마스킹 기반 손실 함수로 학습:
 
 ```bash
+# 🆕 추천: 단일 데이터셋 학습 (ObservedOnly loss)
+python train.py --data loops_033 --loss observed_only --epochs 20
+
 # 기본 실행 (Masked MSE, 보간값 10% 가중치)
-python train.py --loss masked_mse
+python train.py --data loops_033 --loss masked_mse
 
 # 짧은 테스트 (5 에폭)
-python train.py --epochs 5 --loss masked_mse
+python train.py --data loops_033 --epochs 5 --loss masked_mse
 
 # 보간값 가중치 조절 (5% = 관측값의 20배 중요)
-python train.py --loss masked_mse --imputed_weight 0.05
+python train.py --data loops_033 --loss masked_mse --imputed_weight 0.05
 
 # 보간값 완전 무시 (관측값만 학습)
-python train.py --loss observed_only
+python train.py --data loops_033 --loss observed_only
 
 # MAE 손실 함수 (이상치에 덜 민감)
-python train.py --loss masked_mae
+python train.py --data loops_033 --loss masked_mae
 
 # 기존 방식 (비교용 - 마스킹 없음)
-python train.py --loss mse
+python train.py --data loops_033 --loss mse
 ```
+
+#### 🆕 4. 다중 데이터셋 자동 학습
+
+여러 데이터셋을 한 번에 학습하고 결과 비교:
+
+```bash
+# 모든 데이터셋 자동 학습 (loops_033, loops_035, loops_040)
+python train_all.py
+```
+
+**결과:**
+- 각 데이터셋별 모델 저장 (`results/loops_*/best_model.pt`)
+- 학습 로그 자동 저장 (`results/loops_*/training.log`)
+- 최종 성능 비교 및 순위 출력
 
 **주요 옵션**:
 - `--loss`: 손실 함수 선택 (`masked_mse`, `masked_mae`, `observed_only`, `mse`)
 - `--imputed_weight`: 보간값 가중치 (0.0~1.0, 기본값 0.1)
 - `--epochs`: 학습 에폭 수 (기본값 100)
-- `--data`: 데이터 파일명 (기본값 `loops_035`)
+- `--data`: 데이터 파일명 (예: `loops_033`, `loops_035`, `loops_040`)
+- `--lr`: Learning rate (기본값 0.001)
 - `--device`: 디바이스 (`cuda` 또는 `cpu`)
 
-**자세한 사용법**: [MASKED_PREPROCESSING_USAGE.md](MASKED_PREPROCESSING_USAGE.md) 참고
+**자세한 사용법**: [MASKED_PREPROCESSING_USAGE.md](MASKED_PREPROCESSING_USAGE.md) 및 [FIX_SUMMARY.md](FIX_SUMMARY.md) 참고
 
 ## 📊 데이터 구조
 
@@ -251,9 +276,46 @@ Prediction (batch, N, output_dim)
 | 손실 함수 | MSE만 | 4가지 옵션 | ✅ |
 | 학습 파이프라인 | 수동 통합 | CLI 자동화 | ✅ |
 | 테스트 커버리지 | 0% | 80%+ | ✅ |
+| **🆕 NaN Loss 버그** | 첫 에폭 실패 | 완전 해결 | ✅ |
+| **🆕 다중 데이터셋** | 수동 | 자동화 | ✅ |
+
+## 🛡️ NaN Loss 버그 수정 (v2.1.0)
+
+이전 버전에서 학습 시작 즉시 `Train Loss: nan`이 발생하던 치명적 버그를 완전히 수정했습니다.
+
+### 3중 방어 시스템
+
+**1️⃣ 전처리 검증 강화 (메인 수정)**
+- NaN이 보간 후에도 남으면 즉시 에러 발생
+- 나쁜 데이터가 학습에 도달하지 못하도록 차단
+
+**2️⃣ 학습 루프 NaN 감지**
+- Backward pass 전에 NaN/Inf loss 감지
+- 문제 배치는 스킵하고 학습 계속 진행
+- 상세한 디버깅 정보 자동 출력
+
+**3️⃣ 손실 함수 안전장치**
+- Edge case (total_weight == 0) 처리
+- NaN 전파 방지
+
+### 검증 도구
+
+```bash
+# 데이터 NaN/Inf 체크 (NumPy만 필요)
+python check_data_simple.py
+
+# 포괄적 NaN 디버깅 (PyTorch 필요)
+python debug_nan.py
+
+# NaN 수정 테스트 실행
+python test_nan_fix_v2.py
+```
+
+**자세한 내용**: [FIX_SUMMARY.md](FIX_SUMMARY.md)
 
 ## 📚 문서
 
+- [FIX_SUMMARY.md](FIX_SUMMARY.md) - 🆕 NaN Loss 버그 수정 상세 문서
 - [MASKED_PREPROCESSING_USAGE.md](MASKED_PREPROCESSING_USAGE.md) - 마스킹 전처리 상세 가이드
 - [PREPROCESS_REVIEW.md](PREPROCESS_REVIEW.md) - 전처리 개선 내역
 - [IMPROVEMENTS.md](IMPROVEMENTS.md) - 프로젝트 개선 사항
@@ -309,11 +371,24 @@ pytest>=7.0.0
 ## ⚠️ 알려진 이슈
 
 ### 결측값 문제
-- `harmonicMeanSpeed` 특성이 89.5% 결측
+- `harmonicMeanSpeed` 특성이 87.58% 결측
 - 마스킹 + 필터링 전략으로 대응
+- **해결책**: `--loss observed_only` 사용 (관측값만 학습)
 - 자세한 내용은 `analyze_missing_pattern_simple.py` 실행 결과 참조
 
+### ~~NaN Loss 버그~~ ✅ 해결됨 (v2.1.0)
+- ~~이전: 첫 에폭부터 `Train Loss: nan` 발생~~
+- **수정 완료**: 3중 방어 시스템으로 완전 해결
+- 자세한 내용: [FIX_SUMMARY.md](FIX_SUMMARY.md)
+
 ## 💡 문제 해결
+
+### Q: 🆕 학습 시작하자마자 "Train Loss: nan" 나와요
+A: ✅ v2.1.0에서 완전히 수정되었습니다!
+   - 최신 코드 받기: `git pull`
+   - 전처리 다시 실행: `python preprocess.py`
+   - 학습 재시도: `python train.py --data loops_033 --loss observed_only --epochs 5`
+   - 여전히 문제가 있다면: `python debug_nan.py` 실행
 
 ### Q: "Filtered X/Y samples" 메시지가 나와요
 A: 정상입니다. 긴 결측 구간이 있는 샘플을 제거한 것입니다. `max_missing_gap`을 조정하거나 `filter_long_gaps=False`로 설정하세요.
@@ -324,7 +399,10 @@ A: 데이터를 다시 전처리하세요: `python preprocess.py`
 ### Q: 전처리가 너무 느려요
 A: 최신 버전은 벡터화 연산으로 매우 빠릅니다. `git pull`로 최신 코드를 받으세요.
 
+### Q: 🆕 여러 데이터셋을 한 번에 학습하고 싶어요
+A: `python train_all.py`를 사용하세요. loops_033, loops_035, loops_040 모두 자동 학습하고 결과 비교해줍니다.
+
 ---
 
-**최종 업데이트**: 2025-11-16
-**버전**: 2.0.0 (마스킹 전처리 구현)
+**최종 업데이트**: 2025-11-18
+**버전**: 2.1.0 (NaN Loss 버그 수정 + 다중 데이터셋 지원)
