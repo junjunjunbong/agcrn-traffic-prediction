@@ -97,10 +97,17 @@ def main():
     print("\nStarting training...")
     history = trainer.train(num_epochs=args.epochs)
     
-    print("\n" + "="*60)
-    print("Training completed!")
-    print(f"Best validation loss: {history['best_val_loss']:.6f}")
-    print("="*60)
+    print("\n" + "="*70)
+    print("Training Completed!")
+    print("="*70)
+    print(f"\nBest Validation Metrics:")
+    print(f"  Loss:       {history['best_val_loss']:.6f}")
+    print(f"  MAE:        {history['best_val_mae']:.6f}")
+    print(f"  RMSE:       {history['best_val_rmse']:.6f}")
+    print(f"  MAPE:       {history['best_val_mape']:.2f}%")
+    print("\n" + "="*70)
+    print(f"Total epochs trained: {len(history['train_losses'])}")
+    print("="*70)
 
 
 if __name__ == "__main__":
