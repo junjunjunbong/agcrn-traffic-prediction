@@ -20,6 +20,7 @@
 - **완전한 테스트**: 15개 이상의 단위 테스트로 안정성 보장
 - **🆕 NaN Loss 버그 수정**: 3중 방어 시스템으로 안정적인 학습 보장
 - **🆕 다중 데이터셋 지원**: 여러 데이터셋 자동 학습 및 비교 기능
+- **🆕 학습 시각화**: Train/Val Loss 그래프 및 실험 비교 기능
 
 ## 📁 프로젝트 구조
 
@@ -46,6 +47,7 @@ agcrn-traffic-prediction/
 ├── analyze_missing_pattern_simple.py # 독립 실행 분석 스크립트
 ├── train.py                         # 학습 스크립트
 ├── train_all.py                     # 🆕 다중 데이터셋 자동 학습
+├── visualize_training.py            # 🆕 학습 과정 시각화
 ├── preprocess.py                    # 전처리 실행 스크립트
 ├── debug_nan.py                     # 🆕 NaN 디버깅 도구
 ├── check_data_simple.py             # 🆕 데이터 검증 도구
@@ -150,6 +152,33 @@ python train_all.py
 - 각 데이터셋별 모델 저장 (`results/loops_*/best_model.pt`)
 - 학습 로그 자동 저장 (`results/loops_*/training.log`)
 - 최종 성능 비교 및 순위 출력
+
+#### 🆕 5. 학습 과정 시각화
+
+학습 후 손실(loss) 변화를 그래프로 확인:
+
+```bash
+# 기본 사용 (logs/training_history.json 시각화)
+python visualize_training.py
+
+# 특정 history 파일 시각화
+python visualize_training.py --history logs/experiment1.json
+
+# 그래프 파일로 저장
+python visualize_training.py --save results/training_plot.png
+
+# 여러 실험 결과 비교
+python visualize_training.py --compare logs/exp1.json logs/exp2.json --labels "실험1" "실험2"
+
+# 화면에 표시하지 않고 저장만
+python visualize_training.py --save plot.png --no-show
+```
+
+**생성되는 그래프:**
+- Train vs Validation Loss 비교
+- Loss 감소 추이 (로그 스케일)
+- 최고 성능(Best Val Loss) 표시
+- 학습 통계 정보 출력
 
 **주요 옵션**:
 - `--loss`: 손실 함수 선택 (`masked_mse`, `masked_mae`, `observed_only`, `mse`)
