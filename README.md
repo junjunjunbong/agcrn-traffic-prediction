@@ -20,6 +20,7 @@
 - **완전한 테스트**: 15개 이상의 단위 테스트로 안정성 보장
 - **🆕 NaN Loss 버그 수정**: 3중 방어 시스템으로 안정적인 학습 보장
 - **🆕 다중 데이터셋 지원**: 여러 데이터셋 자동 학습 및 비교 기능
+- **🆕 학습 검증 분석**: Heatmap 시각화, Loss 수렴 판단, 노드별 오차 분포
 
 ## 📁 프로젝트 구조
 
@@ -37,6 +38,7 @@ agcrn-traffic-prediction/
 │   ├── trainer.py                   # 학습 코드
 │   ├── losses.py                    # 마스크 기반 손실 함수
 │   ├── eval.py                      # 평가 코드
+│   ├── validation_analysis.py       # 🆕 학습 검증 분석 모듈
 │   └── utils/                       # 유틸리티 함수
 ├── tests/                           # 테스트 코드
 │   ├── test_preprocess.py
@@ -45,7 +47,8 @@ agcrn-traffic-prediction/
 ├── analyze_missing_pattern.py       # 결측값 분석 스크립트
 ├── analyze_missing_pattern_simple.py # 독립 실행 분석 스크립트
 ├── train.py                         # 학습 스크립트
-├── train_all.py                     # 🆕 다중 데이터셋 자동 학습
+├── train_all.py                     # 다중 데이터셋 자동 학습
+├── analyze.py                       # 🆕 학습 검증 분석 스크립트
 ├── preprocess.py                    # 전처리 실행 스크립트
 ├── debug_nan.py                     # 🆕 NaN 디버깅 도구
 ├── check_data_simple.py             # 🆕 데이터 검증 도구
@@ -135,9 +138,40 @@ python train.py --data loops_033 --loss masked_mae
 
 # 기존 방식 (비교용 - 마스킹 없음)
 python train.py --data loops_033 --loss mse
+
+# 🆕 학습 후 자동 분석 (heatmap, 수렴 분석 등)
+python train.py --data loops_033 --epochs 20 --analyze
 ```
 
-#### 🆕 4. 다중 데이터셋 자동 학습
+#### 🆕 4. 학습 검증 분석
+
+학습 후 예측 성능과 수렴 상태를 분석:
+
+```bash
+# 학습 시 자동 분석 (--analyze 플래그)
+python train.py --data loops_033 --epochs 20 --analyze
+
+# 또는 별도 분석 실행
+python analyze.py                    # 기본 모델 분석
+python analyze.py --history-only     # loss history만으로 수렴 분석
+python analyze.py --model saved_models/best_agcrn.pt
+```
+
+**생성되는 분석 결과** (`logs/` 디렉토리):
+
+| 파일 | 설명 |
+|------|------|
+| `prediction_heatmap.png` | 예측 vs 실제 heatmap 비교 |
+| `error_distribution.png` | 노드별 MAE/RMSE/MAPE 분포 |
+| `convergence_analysis.png` | Loss 수렴 분석 그래프 |
+| `validation_report.json` | 전체 분석 결과 JSON |
+
+**수렴 판단 기준**:
+- Stability Score 0.7 이상 = 안정적 수렴
+- Trend: `decreasing` (학습 중), `stable` (수렴), `oscillating` (불안정)
+- Loss Reduction: 초기 대비 손실 감소율 (%)
+
+#### 5. 다중 데이터셋 자동 학습
 
 여러 데이터셋을 한 번에 학습하고 결과 비교:
 
@@ -158,6 +192,7 @@ python train_all.py
 - `--data`: 데이터 파일명 (예: `loops_033`, `loops_035`, `loops_040`)
 - `--lr`: Learning rate (기본값 0.001)
 - `--device`: 디바이스 (`cuda` 또는 `cpu`)
+- `--analyze`: 🆕 학습 후 검증 분석 자동 실행
 
 **자세한 사용법**: [MASKED_PREPROCESSING_USAGE.md](MASKED_PREPROCESSING_USAGE.md) 및 [FIX_SUMMARY.md](FIX_SUMMARY.md) 참고
 
@@ -276,8 +311,9 @@ Prediction (batch, N, output_dim)
 | 손실 함수 | MSE만 | 4가지 옵션 | ✅ |
 | 학습 파이프라인 | 수동 통합 | CLI 자동화 | ✅ |
 | 테스트 커버리지 | 0% | 80%+ | ✅ |
-| **🆕 NaN Loss 버그** | 첫 에폭 실패 | 완전 해결 | ✅ |
-| **🆕 다중 데이터셋** | 수동 | 자동화 | ✅ |
+| **NaN Loss 버그** | 첫 에폭 실패 | 완전 해결 | ✅ |
+| **다중 데이터셋** | 수동 | 자동화 | ✅ |
+| **🆕 학습 검증 분석** | 없음 | Heatmap + 수렴 판단 | ✅ |
 
 ## 🛡️ NaN Loss 버그 수정 (v2.1.0)
 
@@ -399,10 +435,28 @@ A: 데이터를 다시 전처리하세요: `python preprocess.py`
 ### Q: 전처리가 너무 느려요
 A: 최신 버전은 벡터화 연산으로 매우 빠릅니다. `git pull`로 최신 코드를 받으세요.
 
-### Q: 🆕 여러 데이터셋을 한 번에 학습하고 싶어요
+### Q: 여러 데이터셋을 한 번에 학습하고 싶어요
 A: `python train_all.py`를 사용하세요. loops_033, loops_035, loops_040 모두 자동 학습하고 결과 비교해줍니다.
+
+### Q: 🆕 학습이 잘 되고 있는지, Loss가 수렴하는지 어떻게 확인하나요?
+A: `--analyze` 플래그를 사용하거나 `python analyze.py`를 실행하세요:
+   ```bash
+   python train.py --data loops_033 --epochs 20 --analyze
+   # 또는 학습 후
+   python analyze.py
+   ```
+   `logs/` 디렉토리에 heatmap, 수렴 분석 그래프가 생성됩니다.
+   - `convergence_analysis.png`: Loss 추이 및 수렴 판단
+   - `prediction_heatmap.png`: 예측 vs 실제 비교
+   - `validation_report.json`: 상세 분석 결과
+
+### Q: 🆕 Stability Score가 낮다고 나와요
+A: Loss가 불안정하게 진동하고 있다는 의미입니다. 다음을 시도하세요:
+   - Learning rate 낮추기: `--lr 0.0005`
+   - 더 많은 에폭 학습: `--epochs 50`
+   - 다른 손실 함수 시도: `--loss observed_only`
 
 ---
 
-**최종 업데이트**: 2025-11-18
-**버전**: 2.1.0 (NaN Loss 버그 수정 + 다중 데이터셋 지원)
+**최종 업데이트**: 2025-11-28
+**버전**: 2.2.0 (학습 검증 분석 기능 추가)
