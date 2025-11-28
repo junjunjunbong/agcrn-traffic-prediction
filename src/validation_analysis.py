@@ -107,7 +107,7 @@ def analyze_convergence(
     else:
         stability_score = 0.0
 
-    is_stable = stability_score > 0.7
+    is_stable = bool(stability_score > 0.7)
 
     # Check for convergence
     convergence_epoch = None
@@ -610,12 +610,12 @@ def generate_validation_report(
     # Compile report
     report = {
         'convergence': {
-            'is_converged': convergence.is_converged,
+            'is_converged': bool(convergence.is_converged),
             'convergence_epoch': convergence.convergence_epoch,
             'final_loss': convergence.final_loss,
             'best_loss': convergence.best_loss,
             'loss_reduction_percent': convergence.loss_reduction_percent,
-            'is_stable': convergence.is_stable,
+            'is_stable': bool(convergence.is_stable),
             'stability_score': convergence.stability_score,
             'trend': convergence.trend,
             'recommendations': convergence.recommendations
