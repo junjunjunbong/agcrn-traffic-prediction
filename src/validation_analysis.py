@@ -192,10 +192,16 @@ def plot_prediction_heatmap(
         matplotlib Figure
     """
     # Handle different input shapes
-    if predictions.ndim == 3:
-        pred = predictions[:time_steps, :, 0]  # Take first feature
-        target = targets[:time_steps, :, 0]
+    if predictions.ndim == 4:
+        # (num_samples, num_nodes, features, extra_dim)
+        pred = predictions[:time_steps, :, 0, 0]
+        target = targets[:time_steps, :, 0] if targets.ndim == 3 else targets[:time_steps, :, 0, 0]
+    elif predictions.ndim == 3:
+        # (num_samples, num_nodes, features)
+        pred = predictions[:time_steps, :, 0]
+        target = targets[:time_steps, :, 0] if targets.ndim == 3 else targets[:time_steps, :]
     else:
+        # (num_samples, num_nodes)
         pred = predictions[:time_steps, :]
         target = targets[:time_steps, :]
 
@@ -275,10 +281,16 @@ def plot_error_distribution_heatmap(
         matplotlib Figure
     """
     # Handle different input shapes
-    if predictions.ndim == 3:
+    if predictions.ndim == 4:
+        # (num_samples, num_nodes, features, extra_dim)
+        pred = predictions[:, :, 0, 0]
+        target = targets[:, :, 0] if targets.ndim == 3 else targets[:, :, 0, 0]
+    elif predictions.ndim == 3:
+        # (num_samples, num_nodes, features)
         pred = predictions[:, :, 0]
-        target = targets[:, :, 0]
+        target = targets[:, :, 0] if targets.ndim == 3 else targets[:, :]
     else:
+        # (num_samples, num_nodes)
         pred = predictions
         target = targets
 
@@ -564,10 +576,16 @@ def generate_validation_report(
     plt.close()
 
     # Calculate final metrics
-    if predictions.ndim == 3:
+    if predictions.ndim == 4:
+        # (num_samples, num_nodes, features, extra_dim)
+        pred = predictions[:, :, 0, 0]
+        target = targets[:, :, 0] if targets.ndim == 3 else targets[:, :, 0, 0]
+    elif predictions.ndim == 3:
+        # (num_samples, num_nodes, features)
         pred = predictions[:, :, 0]
-        target = targets[:, :, 0]
+        target = targets[:, :, 0] if targets.ndim == 3 else targets[:, :]
     else:
+        # (num_samples, num_nodes)
         pred = predictions
         target = targets
 
