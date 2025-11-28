@@ -30,6 +30,8 @@ def main():
                         help='Loss function: mse (standard), masked_mse (weighted), masked_mae (MAE), observed_only (ignore imputed)')
     parser.add_argument('--imputed_weight', type=float, default=0.1,
                         help='Weight for imputed values in masked losses (0.0-1.0)')
+    parser.add_argument('--analyze', action='store_true',
+                        help='Run comprehensive validation analysis after training')
 
     args = parser.parse_args()
     
@@ -108,6 +110,16 @@ def main():
     print("\n" + "="*70)
     print(f"Total epochs trained: {len(history['train_losses'])}")
     print("="*70)
+
+    # Run comprehensive analysis if requested
+    if args.analyze:
+        print("\nRunning comprehensive validation analysis...")
+        report = trainer.analyze_training()
+        print("\nAnalysis complete! Check the logs/ directory for:")
+        print("  - prediction_heatmap.png (Prediction vs Actual comparison)")
+        print("  - error_distribution.png (Detailed error analysis)")
+        print("  - convergence_analysis.png (Loss convergence visualization)")
+        print("  - validation_report.json (Full analysis report)")
 
 
 if __name__ == "__main__":

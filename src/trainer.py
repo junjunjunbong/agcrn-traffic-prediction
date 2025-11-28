@@ -7,7 +7,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from pathlib import Path
 import numpy as np
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from tqdm import tqdm
 import json
 import copy
@@ -15,6 +15,14 @@ import matplotlib.pyplot as plt
 
 from src.config import SAVED_MODELS_DIR, LOGS_DIR, DEVICE, PATIENCE
 from src.model_agcrn import AGCRN
+from src.validation_analysis import (
+    analyze_convergence,
+    plot_prediction_heatmap,
+    plot_error_distribution_heatmap,
+    plot_convergence_analysis,
+    generate_validation_report,
+    quick_convergence_check
+)
 
 
 class Trainer:
@@ -360,4 +368,87 @@ class Trainer:
         print(f"[INFO] Training curves saved to {save_path}")
 
         return history
+
+    def get_predictions(self, data_loader: DataLoader = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get predictions and targets from the model.
+
+        Args:
+            data_loader: DataLoader to get predictions from (default: val_loader)
+
+        Returns:
+            Tuple of (predictions, targets) as numpy arrays
+        """
+        if data_loader is None:
+            data_loader = self.val_loader
+
+        self.model.eval()
+        all_predictions = []
+        all_targets = []
+
+        with torch.no_grad():
+            for batch_data in data_loader:
+                x, y, masks = batch_data
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+                y_target = y[:, -1, :, :]
+                output = self.model(x)
+
+                if output.shape[-1] != y_target.shape[-1]:
+                    pred = output.unsqueeze(-1)
+                    y_target = y_target[:, :, :1]
+                else:
+                    pred = output
+
+                all_predictions.append(pred.cpu().numpy())
+                all_targets.append(y_target.cpu().numpy())
+
+        predictions = np.concatenate(all_predictions, axis=0)
+        targets = np.concatenate(all_targets, axis=0)
+
+        return predictions, targets
+
+    def analyze_training(self, output_dir: Path = None) -> Dict:
+        """
+        Analyze training results with comprehensive visualizations.
+
+        Args:
+            output_dir: Directory to save analysis outputs
+
+        Returns:
+            Analysis report dictionary
+        """
+        if output_dir is None:
+            output_dir = LOGS_DIR
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get predictions
+        print("\n[INFO] Getting predictions for analysis...")
+        predictions, targets = self.get_predictions()
+
+        # Generate comprehensive report
+        report = generate_validation_report(
+            predictions=predictions,
+            targets=targets,
+            train_losses=self.train_losses,
+            val_losses=self.val_losses,
+            output_dir=output_dir
+        )
+
+        return report
+
+    def check_convergence(self, verbose: bool = True) -> bool:
+        """
+        Check if training has converged.
+
+        Args:
+            verbose: Whether to print status
+
+        Returns:
+            True if converged
+        """
+        return quick_convergence_check(self.val_losses, verbose=verbose)
 
